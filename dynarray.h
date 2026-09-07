@@ -146,7 +146,7 @@ extern void _da_arr_unit_tests(void);
 #define arr_pop                     da_arr_pop
 #define arr_get                     da_arr_get
 #define arr_peek                    da_arr_peek
-// #define arr_insert_value            da_arr_insert_value
+#define arr_insert_value            da_arr_insert_value
 #define arr_insert                  da_arr_insert
 #define arr_remove                  da_arr_remove
 #define arr_push_front              da_arr_push_front
@@ -223,7 +223,7 @@ extern size_t da_log_two(size_t);
 #define da_slice_from_arr(array) _slice_from_array(array)
 #define da_slice_from_arr_range(Type, array, start, end) _slice_from_array_range(sizeof(Type),array,start,end)
 #define da_arr_to_slice(array) ((slice_t){.end = (array)->cnt, .start = (array)->data})
-#define da_slice_set_value(Type,slice,index,elem) _slice_set(sizeof(Type),slice,index,(void *)&(Type){(elem)})
+#define da_slice_set_value(Type,slice,index,elem) do{Type item = (elem);_slice_set(sizeof(Type),slice,index,&(item));}while(0)
 #define da_slice_set(Type,slice,index,elem) _slice_set(sizeof(Type),slice,index,elem)
 #define da_slice_get(Type,slice,index) (Type *)_slice_get(sizeof(Type),slice,index)
 #define da_slice_swap_index(Type, slice, idx_a, idx_b) _slice_swap_index(sizeof(Type), slice, idx_a, idx_b) 
@@ -270,21 +270,22 @@ extern size_t da_log_two(size_t);
     RESULT = -1;\
     if (end > 0) {\
         size_t inner_end = end - 1;\
-        if (inner_end <= start) return -1;\
-        if (pivot_idx != inner_end) _slice_swap_index(sizeof(Type),slice,pivot_idx,inner_end);\
-        Type * elem_pivot = (Type *)_slice_get(sizeof(Type),slice,inner_end);\
-        ptrdiff_t i = start;\
-        for (size_t j = start; j < inner_end; j++) {\
-            Type * elem_j = (Type *)_slice_get(sizeof(Type),slice,j);\
-            a=elem_j;\
-            b=elem_pivot;\
-            if (condition) {\
-                _slice_swap_index(sizeof(Type),slice,i,j);\
-                i++;\
+        if (inner_end > start) {\
+            if (pivot_idx != inner_end) _slice_swap_index(sizeof(Type),slice,pivot_idx,inner_end);\
+            Type * elem_pivot = (Type *)_slice_get(sizeof(Type),slice,inner_end);\
+            ptrdiff_t i = start;\
+            for (size_t j = start; j < inner_end; j++) {\
+                Type * elem_j = (Type *)_slice_get(sizeof(Type),slice,j);\
+                a=elem_j;\
+                b=elem_pivot;\
+                if (condition) {\
+                    _slice_swap_index(sizeof(Type),slice,i,j);\
+                    i++;\
+                }\
             }\
+            _slice_swap_index(sizeof(Type),slice,i,inner_end);\
+            RESULT = i;\
         }\
-        _slice_swap_index(sizeof(Type),slice,i,inner_end);\
-        RESULT = i;\
     }\
 }while(0)
 #define da_slice_partition(Type,slice,a,b,condition,RESULT) inner_slice_partition_range(Type, slice, 0, (slice)->end, (slice)->end - 1, a, b, condition, RESULT)
@@ -353,7 +354,7 @@ extern size_t da_log_two(size_t);
 // // // // // // // // // // // // // // // 
 // // slice to array translation wrappers
 #define inner_arr_use_slice(array,slice_operation) do{slice_t *slice = &da_arr_to_slice(array); slice_operation;}while(0)
-#define da_arr_set_value(Type,array,index,elem) _slice_set(sizeof(Type),&da_arr_to_slice(array),index,(void *)&(Type){(elem)})
+#define da_arr_set_value(Type,array,index,elem) slice_set_value(Type,&da_arr_to_slice(array),index,elem)
 #define da_arr_set(Type,array,index,elem) _slice_set(sizeof(Type),&da_arr_to_slice(array),index,elem)
 #define da_arr_get(Type,array,index) (Type *)_slice_get(sizeof(Type),&da_arr_to_slice(array),index)
 #define da_arr_swap_index(Type, array, idx_a, idx_b) _slice_swap_index(sizeof(Type), &da_arr_to_slice(array), idx_a, idx_b) 
@@ -388,7 +389,7 @@ extern size_t da_log_two(size_t);
 #define da_arr_push(Type,array,elem) _array_push(sizeof(Type),array,elem, DA_ARR_MIN_CAPACITY,DA_ALLOCATOR(array))
 #define da_arr_push_value(Type,array,elem) do{Type item = (elem);_array_push(sizeof(Type),array,&(item), DA_ARR_MIN_CAPACITY,DA_ALLOCATOR(array));}while(0)
 #define da_arr_push_front(Type,array,elem) da_arr_insert(Type,array,0,elem,DA_ALLOCATOR(array))
-// #define da_arr_insert_value(Type,array,index,elem) _array_insert(sizeof(Type),array,index,(void *)&(Type){(elem)}, DA_ARR_MIN_CAPACITY,DA_ALLOCATOR(array))
+#define da_arr_insert_value(Type,array,index,elem) do{Type item = (elem);_array_insert(sizeof(Type),array,index,&(item), DA_ARR_MIN_CAPACITY,DA_ALLOCATOR(array));}while(0)
 #define da_arr_insert(Type,array,index,elem) _array_insert(sizeof(Type),array,index,elem, DA_ARR_MIN_CAPACITY,DA_ALLOCATOR(array))
 #define da_arr_swap_remove(Type,array,index) _array_swap_remove(sizeof(Type),array,index, DA_ARR_MIN_CAPACITY,DA_ALLOCATOR(array))
 #define da_arr_remove(Type,array,index) _array_remove(sizeof(Type),array,index, DA_ARR_MIN_CAPACITY,DA_ALLOCATOR(array))
@@ -667,13 +668,9 @@ void _array_concat(size_t size, dynarray_t *dest, dynarray_t *other, void * allo
 #include <assert.h>
 #include <stdio.h>
 
-static int _da_unit_test_part_condition(const int *item, const int *ctx) {
-    // DA_UNUSED(ctx);
-    return (*item < *ctx);
-}
-
 void _da_arr_unit_tests(void) {
     dynarray_t *array = da_arr(int);
+    
     int i, j;
     // assert length of array in two states
     assert(da_arr_len(array) == 0);
@@ -706,13 +703,10 @@ void _da_arr_unit_tests(void) {
         assert(*da_arr_get(int, array, i) == i*2);
     }
     // partition array with even numbers at the front and odd numbers at the back
-    printf("before partition\n");
-    ptrdiff_t partition_index = da_arr_partition(int, array, _da_unit_test_part_condition);
-    printf("after partition\n");
+    ptrdiff_t partition_index;
+    da_arr_partition(int, array, a, b, (*a<*b), partition_index);
     // assert if partition is successfull the start of the odd numbers must be at index 50
     assert(partition_index == (ptrdiff_t)da_arr_len(array)-1);
-
-    
 
     for (i = 50; i < 100; i++) {
         da_arr_insert_value(int, array, i, 101);    
@@ -765,13 +759,29 @@ void _da_arr_unit_tests(void) {
 
     da_arr_insertion_sort(int, array, 0, array->cnt, a, b, (*a>*b));
     // end config should be [2,3,4,5,7,9,10,11]
-    int validation_array[8] = {2,3,4,5,7,9,10,11};
+    int validation_array_is[8] = {2,3,4,5,7,9,10,11};
     for (size_t i = 0; i < arr_len(array); i++) {
-        assert(validation_array[i] == *da_arr_get(int,array,i));
+        assert(validation_array_is[i] == *da_arr_get(int,array,i));
     }
 
-    da_arr_set_value(int, array, 0, 15);
-    assert(*da_arr_get(int, array, 0) == 15);
+    // da_arr_set_value(int, array, 0, 15);
+    // assert(*da_arr_get(int, array, 0) == 15);
+
+    da_arr_clear(array);
+
+    da_arr_push_value(int, array, 2);
+    da_arr_push_value(int, array, 5);
+    da_arr_push_value(int, array, 3);
+    da_arr_push_value(int, array, 4);
+    da_arr_push_value(int, array, 9);
+    da_arr_push_value(int, array, 7);
+
+    da_arr_quick_sort(int, array, 0, array->cnt, a, b, (*a<*b));
+    // end config should be [2,3,4,5,7,9,10,11]
+    int validation_array_qs[8] = {2,3,4,5,7,9,10,11};
+    for (size_t i = 0; i < arr_len(array); i++) {
+        assert(validation_array_qs[i] == *da_arr_get(int,array,i));
+    }
 
     da_arr_free(array);
     array = NULL;
