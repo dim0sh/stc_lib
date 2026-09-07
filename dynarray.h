@@ -1,5 +1,5 @@
 /*  dynarray.h - typesafe dynamic array library 
-    version 0.3.5 - Iain Dorsch - 2026
+    version 0.3.6 - Iain Dorsch - 2026
 
     To use this library, do the following in *one* of your .c files:
         #define DYNARRAY_IMPLEMENTATION
@@ -138,7 +138,7 @@ extern void _da_arr_unit_tests(void);
 #define arr_capacity                da_arr_capacity
 #define arr_is_empty                da_arr_is_empty
 #define arr_clear                   da_arr_clear
-#define arr_push_value              da_arr_push_value
+// #define arr_push_value              da_arr_push_value
 #define arr_push                    da_arr_push
 #define arr_free                    da_arr_free
 #define arr_swap_remove             da_arr_swap_remove
@@ -146,13 +146,14 @@ extern void _da_arr_unit_tests(void);
 #define arr_pop                     da_arr_pop
 #define arr_get                     da_arr_get
 #define arr_peek                    da_arr_peek
-#define arr_insert_value            da_arr_insert_value
+// #define arr_insert_value            da_arr_insert_value
 #define arr_insert                  da_arr_insert
 #define arr_remove                  da_arr_remove
 #define arr_push_front              da_arr_push_front
 #define arr_concat                  da_arr_concat
 #define arr_swap_index              da_arr_swap_index
 #define arr_partition               da_arr_partition
+#define arr_partition_ex            da_arr_partition_ex
 #define arr_ptr                     da_arr_ptr
 #define arr_match_first             da_arr_match_first
 #define arr_insertion_sort          da_arr_insertion_sort
@@ -173,6 +174,7 @@ extern void _da_arr_unit_tests(void);
 #define slice_match_first           da_slice_match_first
 #define slice_insertion_sort        da_slice_insertion_sort
 #define slice_partition             da_slice_partition
+#define slice_partition_ex          da_slice_partition_ex
 #define slice_quick_sort            da_slice_quick_sort
 #define slice_stack_quick_sort      da_slice_stack_quick_sort
 
@@ -194,7 +196,7 @@ extern void _slice_set(size_t size, slice_t *slice, size_t idx, void *elem);
 extern char *_slice_get(size_t size, slice_t *slice, size_t idx);
 extern void _slice_swap_index(size_t size, slice_t *slice, size_t idx_one, size_t idx_two);
 extern void _slice_rotate_swap(size_t size, slice_t *slice, size_t first, size_t mid, size_t last);
-extern ptrdiff_t _slice_partition_range(size_t size, slice_t *slice, size_t start, size_t end, int (*f)(const char *, const char *));
+// extern ptrdiff_t _slice_partition_range(size_t size, slice_t *slice, size_t start, size_t end, int (*f)(const char *, const char *));
 extern void _slice_quick_sort(size_t size, slice_t *slice, size_t start, size_t end, int (*f)(const char *, const char *));
 extern size_t da_log_two(size_t);
 
@@ -224,9 +226,7 @@ extern size_t da_log_two(size_t);
 #define da_slice_set_value(Type,slice,index,elem) _slice_set(sizeof(Type),slice,index,(void *)&(Type){(elem)})
 #define da_slice_set(Type,slice,index,elem) _slice_set(sizeof(Type),slice,index,elem)
 #define da_slice_get(Type,slice,index) (Type *)_slice_get(sizeof(Type),slice,index)
-// #define da_slice_swap(Type, slice, idx_a, idx_b) _slice_swap_index(sizeof(Type), slice, idx_a, idx_b) 
 #define da_slice_swap_index(Type, slice, idx_a, idx_b) _slice_swap_index(sizeof(Type), slice, idx_a, idx_b) 
-// #define da_slice_partition(Type,slice,condition) _slice_partition_range(sizeof(Type),slice,0,(slice)->end,(int(*)(const char *, const char *))(condition))
 #define da_slice_foreach(Type, item, slice) for (Type *item = (Type *)(slice)->start; item < (Type *)((slice)->start + (slice)->end * sizeof(Type)); item++)
 #define da_slice_map(Type, slice, item, operation) do{\
     for (Type *item = (Type *)(slice)->start; \
@@ -264,13 +264,14 @@ extern size_t da_log_two(size_t);
     }\
 }while(0)
 #define da_slice_insertion_sort(Type, slice, a, b, condition) inner_slice_insertion_sort(Type, slice, 0, (slice)->end, a, b, condition)
-#define inner_slice_partition_range(Type, slice, start, end, a, b, condition, RESULT) do{\
+#define inner_slice_partition_range(Type, slice, start, end, pivot_idx, a, b, condition, RESULT) do{\
     Type *a;\
     Type *b;\
     RESULT = -1;\
     if (end > 0) {\
         size_t inner_end = end - 1;\
         if (inner_end <= start) return -1;\
+        if (pivot_idx != inner_end) _slice_swap_index(sizeof(Type),slice,pivot_idx,inner_end);\
         Type * elem_pivot = (Type *)_slice_get(sizeof(Type),slice,inner_end);\
         ptrdiff_t i = start;\
         for (size_t j = start; j < inner_end; j++) {\
@@ -286,16 +287,18 @@ extern size_t da_log_two(size_t);
         RESULT = i;\
     }\
 }while(0)
-
+#define da_slice_partition(Type,slice,a,b,condition,RESULT) inner_slice_partition_range(Type, slice, 0, (slice)->end, (slice)->end - 1, a, b, condition, RESULT)
+#define da_slice_partition_ex(Type,slice,start,end,pivot_idx,a,b,condition,RESULT) inner_slice_partition_range(Type, slice, start, end, pivot_idx, a, b, condition, RESULT)
+// range_t stack[da_log_two((slice)->end)];
 #define inner_slice_stack_non_recursive_quick_sort(Type, slice, first, last, a, b, condition) do{\
-    range_t stack[da_log_two((slice)->end)];\
+    range_t stack[(slice)->end];\
     ptrdiff_t stack_idx = 0;\
     int not_done = 1;\
     range_t current_range = (range_t){.start = first, .end = last};\
     while(not_done) {\
         if (current_range.start < current_range.end-1) {\
             ptrdiff_t pi;\
-            inner_slice_partition_range(Type, slice, current_range.start, current_range.end, a, b, condition, pi);\
+            inner_slice_partition_range(Type, slice, current_range.start, current_range.end, current_range.end - 1, a, b, condition, pi);\
             if (pi > (ptrdiff_t)current_range.start+1) {\
                 stack[stack_idx] = (range_t){.start = current_range.start, .end = pi};\
                 stack_idx += 1;\
@@ -313,16 +316,16 @@ extern size_t da_log_two(size_t);
         }\
     }\
 }while(0)
-
+// range_t *stack = (range_t*)malloc(sizeof(range_t)*da_log_two((slice)->end));
 #define inner_slice_alloc_non_recursive_quick_sort(Type, slice, first, last, a, b, condition) do{\
-    range_t *stack = (range_t*)malloc(sizeof(range_t)*da_log_two((slice)->end));\
+    range_t *stack = (range_t*)malloc(sizeof(range_t)*(slice)->end);\
     ptrdiff_t stack_idx = 0;\
     int not_done = 1;\
     range_t current_range = (range_t){.start = first, .end = last};\
     while(not_done) {\
         if (current_range.start < current_range.end-1) {\
             ptrdiff_t pi;\
-            inner_slice_partition_range(Type, slice, current_range.start, current_range.end, a, b, condition, pi);\
+            inner_slice_partition_range(Type, slice, current_range.start, current_range.end, current_range.end - 1, a, b, condition, pi);\
             if (pi > (ptrdiff_t)current_range.start+1) {\
                 stack[stack_idx] = (range_t){.start = current_range.start, .end = pi};\
                 stack_idx += 1;\
@@ -341,7 +344,6 @@ extern size_t da_log_two(size_t);
     }\
     free(stack);\
 }while(0)
-
 #define da_slice_quick_sort(Type, slice, a, b, condition) inner_slice_alloc_non_recursive_quick_sort(Type, slice, 0, (slice)->end, a, b, condition)
 #define da_slice_stack_quick_sort(Type, slice, a, b, condition) inner_slice_stack_non_recursive_quick_sort(Type, slice, 0, (slice)->end, a, b, condition)
 #define da_slice_print_all(Type,slice,item,...) do{\
@@ -355,7 +357,9 @@ extern size_t da_log_two(size_t);
 #define da_arr_set(Type,array,index,elem) _slice_set(sizeof(Type),&da_arr_to_slice(array),index,elem)
 #define da_arr_get(Type,array,index) (Type *)_slice_get(sizeof(Type),&da_arr_to_slice(array),index)
 #define da_arr_swap_index(Type, array, idx_a, idx_b) _slice_swap_index(sizeof(Type), &da_arr_to_slice(array), idx_a, idx_b) 
-#define da_arr_partition(Type,array,condition) _slice_partition_range(sizeof(Type),&da_arr_to_slice(array),0,array->cnt,(int(*)(const char *,const char *))(condition))
+// #define da_arr_partition(Type,array,condition) _slice_partition_range(sizeof(Type),&da_arr_to_slice(array),0,array->cnt,(int(*)(const char *,const char *))(condition))
+#define da_arr_partition(Type,array,a,b,condition,RESULT) inner_arr_use_slice(array,inner_slice_partition_range(Type,slice,0,(array)->cnt,(array)->cnt-1,a,b,condition,RESULT))
+#define da_arr_partition_ex(Type,array,start,end,pivot_idx,a,b,condition,RESULT) inner_arr_use_slice(array,inner_slice_partition_range(Type,slice,start,end,pivot_idx,a,b,condition,RESULT))
 #define da_arr_rotate_swap(Type,array,first,mid,last) _slice_rotate_swap(sizeof(Type), &da_arr_to_slice(array), first, mid, last)
 #define da_arr_foreach(Type, item, array) da_slice_foreach(Type, item, &da_arr_to_slice(array))
 #define da_arr_map(Type, array, item, operation) inner_arr_use_slice(array,da_slice_map(Type, slice, item, operation))
@@ -380,10 +384,10 @@ extern size_t da_log_two(size_t);
 #else
 #define DA_ALLOCATOR(array) NULL
 #endif
-#define da_arr_push_value(Type,array,elem) _array_push(sizeof(Type),array,(void *)&(Type){(elem)}, DA_ARR_MIN_CAPACITY,DA_ALLOCATOR(array))
+// #define da_arr_push_value(Type,array,elem) _array_push(sizeof(Type),array,(void *)&(Type){(elem)}, DA_ARR_MIN_CAPACITY,DA_ALLOCATOR(array))
 #define da_arr_push(Type,array,elem) _array_push(sizeof(Type),array,elem, DA_ARR_MIN_CAPACITY,DA_ALLOCATOR(array))
 #define da_arr_push_front(Type,array,elem) da_arr_insert(Type,array,0,elem,DA_ALLOCATOR(array))
-#define da_arr_insert_value(Type,array,index,elem) _array_insert(sizeof(Type),array,index,(void *)&(Type){(elem)}, DA_ARR_MIN_CAPACITY,DA_ALLOCATOR(array))
+// #define da_arr_insert_value(Type,array,index,elem) _array_insert(sizeof(Type),array,index,(void *)&(Type){(elem)}, DA_ARR_MIN_CAPACITY,DA_ALLOCATOR(array))
 #define da_arr_insert(Type,array,index,elem) _array_insert(sizeof(Type),array,index,elem, DA_ARR_MIN_CAPACITY,DA_ALLOCATOR(array))
 #define da_arr_swap_remove(Type,array,index) _array_swap_remove(sizeof(Type),array,index, DA_ARR_MIN_CAPACITY,DA_ALLOCATOR(array))
 #define da_arr_remove(Type,array,index) _array_remove(sizeof(Type),array,index, DA_ARR_MIN_CAPACITY,DA_ALLOCATOR(array))
