@@ -138,8 +138,8 @@ extern void _da_arr_unit_tests(void);
 #define arr_capacity                da_arr_capacity
 #define arr_is_empty                da_arr_is_empty
 #define arr_clear                   da_arr_clear
-// #define arr_push_value              da_arr_push_value
 #define arr_push                    da_arr_push
+#define arr_push_value              da_arr_push_value
 #define arr_free                    da_arr_free
 #define arr_swap_remove             da_arr_swap_remove
 #define arr_filter_remove_unstable  da_arr_filter_remove_unstable
@@ -386,6 +386,7 @@ extern size_t da_log_two(size_t);
 #endif
 // #define da_arr_push_value(Type,array,elem) _array_push(sizeof(Type),array,(void *)&(Type){(elem)}, DA_ARR_MIN_CAPACITY,DA_ALLOCATOR(array))
 #define da_arr_push(Type,array,elem) _array_push(sizeof(Type),array,elem, DA_ARR_MIN_CAPACITY,DA_ALLOCATOR(array))
+#define da_arr_push_value(Type,array,elem) do{Type item = (elem);_array_push(sizeof(Type),array,&(item), DA_ARR_MIN_CAPACITY,DA_ALLOCATOR(array));}while(0)
 #define da_arr_push_front(Type,array,elem) da_arr_insert(Type,array,0,elem,DA_ALLOCATOR(array))
 // #define da_arr_insert_value(Type,array,index,elem) _array_insert(sizeof(Type),array,index,(void *)&(Type){(elem)}, DA_ARR_MIN_CAPACITY,DA_ALLOCATOR(array))
 #define da_arr_insert(Type,array,index,elem) _array_insert(sizeof(Type),array,index,elem, DA_ARR_MIN_CAPACITY,DA_ALLOCATOR(array))
