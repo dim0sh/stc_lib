@@ -1,5 +1,5 @@
 /*  dynarray.h - typesafe dynamic array library 
-    version 0.3.6 - Iain Dorsch - 2026
+    version 0.3.8 - Iain Dorsch - 2026
 
     To use this library, do the following in *one* of your .c files:
         #define DYNARRAY_IMPLEMENTATION
@@ -184,6 +184,8 @@ extern void _da_arr_unit_tests(void);
 extern dynarray_t *_array_empty(void * allocator);
 extern dynarray_t *_array_init(size_t size, size_t init_capacity, void * allocator);
 extern dynarray_t * _array_init_with(size_t size, size_t count, void * elem, void * allocator);
+extern char * _array_get(size_t size, dynarray_t * array, size_t idx);
+extern void _array_set(size_t size, dynarray_t *array, size_t idx, void *elem);
 extern void _array_push(size_t size, dynarray_t *arr, void *elem, size_t init_capacity, void * allocator);
 extern void _array_swap_remove(size_t size, dynarray_t *arr, size_t idx, size_t init_capacity, void * allocator);
 extern char *_array_pop(size_t size, dynarray_t *arr, size_t init_capacity, void * allocator);
@@ -353,23 +355,23 @@ extern size_t da_log_two(size_t);
 }while(0)
 // // // // // // // // // // // // // // // 
 // // slice to array translation wrappers
-#define inner_arr_use_slice(array,slice_operation) do{slice_t *slice = &da_arr_to_slice(array); slice_operation;}while(0)
-#define da_arr_set_value(Type,array,index,elem) slice_set_value(Type,&da_arr_to_slice(array),index,elem)
-#define da_arr_set(Type,array,index,elem) _slice_set(sizeof(Type),&da_arr_to_slice(array),index,elem)
-#define da_arr_get(Type,array,index) (Type *)_slice_get(sizeof(Type),&da_arr_to_slice(array),index)
-#define da_arr_swap_index(Type, array, idx_a, idx_b) _slice_swap_index(sizeof(Type), &da_arr_to_slice(array), idx_a, idx_b) 
+#define inner_arr_use_slice(array,slice_operation) do{slice_t slice = da_arr_to_slice(array); slice_operation;}while(0)
+#define da_arr_set_value(Type,array,index,elem) inner_arr_use_slice(array,slice_set_value(Type,&slice,index,elem))
+#define da_arr_set(Type,array,index,elem) _array_set(sizeof(Type),array,index,elem)
+#define da_arr_get(Type,array,index) (Type *)_array_get(sizeof(Type),array,index)
+#define da_arr_swap_index(Type, array, idx_a, idx_b) inner_arr_use_slice(_slice_swap_index(sizeof(Type), &slice, idx_a, idx_b)) 
 // #define da_arr_partition(Type,array,condition) _slice_partition_range(sizeof(Type),&da_arr_to_slice(array),0,array->cnt,(int(*)(const char *,const char *))(condition))
-#define da_arr_partition(Type,array,a,b,condition,RESULT) inner_arr_use_slice(array,inner_slice_partition_range(Type,slice,0,(array)->cnt,(array)->cnt-1,a,b,condition,RESULT))
-#define da_arr_partition_ex(Type,array,start,end,pivot_idx,a,b,condition,RESULT) inner_arr_use_slice(array,inner_slice_partition_range(Type,slice,start,end,pivot_idx,a,b,condition,RESULT))
-#define da_arr_rotate_swap(Type,array,first,mid,last) _slice_rotate_swap(sizeof(Type), &da_arr_to_slice(array), first, mid, last)
+#define da_arr_partition(Type,array,a,b,condition,RESULT) inner_arr_use_slice(array,inner_slice_partition_range(Type,&slice,0,(array)->cnt,(array)->cnt-1,a,b,condition,RESULT))
+#define da_arr_partition_ex(Type,array,start,end,pivot_idx,a,b,condition,RESULT) inner_arr_use_slice(array,inner_slice_partition_range(Type,&slice,start,end,pivot_idx,a,b,condition,RESULT))
+#define da_arr_rotate_swap(Type,array,first,mid,last) inner_arr_use_slice(array,_slice_rotate_swap(sizeof(Type), &slice, first, mid, last))
 #define da_arr_foreach(Type, item, array) da_slice_foreach(Type, item, &da_arr_to_slice(array))
-#define da_arr_map(Type, array, item, operation) inner_arr_use_slice(array,da_slice_map(Type, slice, item, operation))
-#define da_arr_filter_each(Type, array, item, condition, operation) inner_arr_use_slice(array,da_slice_filter_each(Type, slice, item, condition, operation))
-#define da_arr_match_first(Type, array, first, last, item, condition, RESULT) inner_arr_use_slice(array,inner_slice_match_first(Type, slice, first, last, item, condition, RESULT))
-#define da_arr_insertion_sort(Type, array, first, last, a, b, condition) inner_arr_use_slice(array,inner_slice_insertion_sort(Type, slice, first, last, a, b, condition))
-#define da_arr_quick_sort(Type, array, first, last, a, b, condition) inner_arr_use_slice(array,inner_slice_alloc_non_recursive_quick_sort(Type, slice, first, last, a, b, condition))
-#define da_arr_stack_quick_sort(Type, array, first, last, a, b, condition) inner_arr_use_slice(array,inner_slice_stack_non_recursive_quick_sort(Type, slice, first, last, a, b, condition))
-#define da_arr_print_all(Type, array, item, ...) inner_arr_use_slice(array,da_slice_print_all(Type, slice, item, __VA_ARGS__))
+#define da_arr_map(Type, array, item, operation) inner_arr_use_slice(array,da_slice_map(Type, &slice, item, operation))
+#define da_arr_filter_each(Type, array, item, condition, operation) inner_arr_use_slice(array,da_slice_filter_each(Type, &slice, item, condition, operation))
+#define da_arr_match_first(Type, array, first, last, item, condition, RESULT) inner_arr_use_slice(array,inner_slice_match_first(Type, &slice, first, last, item, condition, RESULT))
+#define da_arr_insertion_sort(Type, array, first, last, a, b, condition) inner_arr_use_slice(array,inner_slice_insertion_sort(Type, &slice, first, last, a, b, condition))
+#define da_arr_quick_sort(Type, array, first, last, a, b, condition) inner_arr_use_slice(array,inner_slice_alloc_non_recursive_quick_sort(Type, &slice, first, last, a, b, condition))
+#define da_arr_stack_quick_sort(Type, array, first, last, a, b, condition) inner_arr_use_slice(array,inner_slice_stack_non_recursive_quick_sort(Type, &slice, first, last, a, b, condition))
+#define da_arr_print_all(Type, array, item, ...) inner_arr_use_slice(array,da_slice_print_all(Type, &slice, item, __VA_ARGS__))
 // // // // // // // // // // // // // // // 
 // // array utilities
 #define da_arr_len(array) (array)->cnt
@@ -449,6 +451,11 @@ void _slice_set(size_t size, slice_t *slice, size_t idx, void *elem) {
     }
 }
 
+void _array_set(size_t size, dynarray_t *array, size_t idx, void *elem) {
+    slice_t slice = (slice_t){.start = array->data, .end = array->cnt};
+    _slice_set(size,&slice,idx,elem);
+}
+
 __attribute__((hot,warn_unused_result,nonnull(2)))
 char *_slice_get(size_t size, slice_t *slice, size_t idx) {
     char *ptr = NULL;
@@ -456,6 +463,11 @@ char *_slice_get(size_t size, slice_t *slice, size_t idx) {
         ptr = slice->start + (idx * size);
     }
     return ptr;
+}
+
+char * _array_get(size_t size, dynarray_t * array, size_t idx) {
+    slice_t slice = (slice_t){.start = array->data, .end = array->cnt};
+    return _slice_get(size,&slice,idx);
 }
 
 __attribute__((hot,nonnull(2)))
