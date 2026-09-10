@@ -1,23 +1,26 @@
-/*  dynarray.h - typesafe dynamic array library 
-    version 0.3.8 - Iain Dorsch - 2026
+/*  stc_da.h - typesafe datastructure library 
+    version 0.4.0 - Iain Dorsch - 2026
 
     To use this library, do the following in *one* of your .c files:
         #define DYNARRAY_IMPLEMENTATION
-        #include "dynarray.h"
+        #include "stc_da.h"
+    Available Implementations are:
+        #define DYNARRAY_IMPLEMENTATION
+        #define SPARSESET_IMPLEMENTATION
     In any other .c file that needs the library, just include the header:
-        #include "dynarray.h"
+        #include "stc_da.h"
 
     Too avoid collisions with other libraries, the standard API uses a "da_" prefix.
     Short names are also provided. 
     If prefix names are required short names can be disabled:
-        #define DYNARRAY_NO_SHORT_NAMES
+        #define DA_NO_SHORT_NAMES
 
     Unit tests can be enabled by including the library as described above and 
     defining DYNARRAY_UNIT_TESTS. The function _da_arr_unit_tests() must then be called to run the tests.
     Example:
         #define DYNARRAY_IMPLEMENTATION
         #define DYNARRAY_UNIT_TESTS
-        #include "dynarray.h"
+        #include "stc_da.h"
 
         int main() {
             _da_arr_unit_tests();
@@ -29,10 +32,10 @@
     which now will require a pointer to the allocator used as a parameter.
     Example:
         #define DYNARRAY_IMPLEMENTATION
-        #define DA_ARR_CUSTOM_ALLOC
+        #define DA_CUSTOM_ALLOC
         #define DA_REALLOC(allocator,pointer,size) arena_realloc(allocator,pointer,size)
         #define DA_FREE(allocator,pointer) arena_free(pointer)
-        #include "dynarray.h"
+        #include "stc_da.h"
 
         int main() {
             // example allocator
@@ -44,24 +47,29 @@
     
     Functionality provided by this library:
         - Dynamic array of any type
-        - Amortized O(1) push and pop operations
-        - O(1) get and set operations
-        - O(1) swap remove
-        - O(n) insert and remove
-        - O(n + m) concatenation
-        - O(n) partitioning
-        - O(n) mapping and filtering
-        - O(n) rotate like c++ rotate
-        - O(n) find first item maching condition (first_cond)
-            can be made to be upper or lower bound by passing the according comparison function.
-        - insertion sort using rotate and upper_bound.
-            upper_bound is created by passing a a_greater_than_b function as the condition to first_cond.
-            thus a_greater_than_b must be provided to insertion sort.
+            - Amortized O(1) push and pop operations
+            - O(1) get and set operations
+            - O(1) swap remove
+            - O(n) insert and remove
+            - O(n + m) concatenation
+            - O(n) partitioning
+            - O(n) mapping and filtering
+            - O(n) rotate like c++ rotate
+            - O(n) find first item maching condition (first_cond)
+                can be made to be upper or lower bound by passing the according comparison function.
+            - insertion sort using rotate and upper_bound.
+                upper_bound is created by passing a a_greater_than_b function as the condition to first_cond.
+                thus a_greater_than_b must be provided to insertion sort.
+            - print all elements with specified format.
+                example for array of int: 
+                da_arr_print_all(int, list_one, " %d;",*item);
+        - Sparse-Set of any type based on the dynamic array
+            - insert
+            - delete
+            - get
+            - free
         - Unit tests
         - realloc and free can be custom defined
-        - print all elements with specified format.
-            example for array of int: 
-                da_arr_print_all(int, list_one, " %d;",*item);
 
     Non allocation functionality is implemented on a Slice meaning all that funcitonality
     can be used with slices and functions to create slices from dynarrays is provided.
@@ -70,10 +78,16 @@
 
     Table of contents:
         - Library instructionss
-        - short name API
-        - Internal functions declarations
-        - prefix name API
-        - Internal functions implementations
+        - DYNARRAY 
+            - short name API
+            - Internal functions declarations
+            - prefix name API
+            - Internal functions implementations
+        - SPARSESET
+            - short name API
+            - Internal functions declarations
+            - prefix name API
+            - Internal functions implementations
         - Unit tests
 */
 
@@ -123,7 +137,7 @@ typedef struct {
 extern void _da_arr_unit_tests(void);
 // // // // // // // // // // // // // // // 
 // Short names API
-#ifndef DYNARRAY_NO_SHORT_NAMES
+#ifndef DA_NO_SHORT_NAMES
 // arr macros init
 #define arr_reserve                 da_arr_reserve
 #define arr                         da_arr
@@ -670,6 +684,173 @@ void _array_concat(size_t size, dynarray_t *dest, dynarray_t *other, void * allo
     }
 }
 
+#endif
+
+// // // // // // // // // // // // // // // 
+// Sparseset
+#define SP_MIN_SIZE DA_ARR_MIN_CAPACITY
+#define SP_DEFAULT_PAGE_SIZE 10000
+#if !defined SP_INDEX_TYPE
+#define SP_INDEX_TYPE size_t
+#endif
+
+typedef struct SparseSet {
+    size_t page_size;
+    dynarray_t *sparse;     //pages of mapping to dense
+    dynarray_t *dense;      //actual data mapped to in sparse
+    dynarray_t *backwards;  //dense to id (backwards relation needed for delete)
+} sparse_set_t;
+
+#ifndef DA_NO_SHORT_NAMES
+#define sp_set          da_sp_set
+#define sp_set_insert   da_sp_set_insert
+#define sp_set_delete   da_sp_set_delete
+#define sp_set_get      da_sp_set_get
+#define sp_set_free     da_sp_set_free
+#endif
+
+extern sparse_set_t *_sparse_set_init(size_t size, size_t page_size, void * allocator);
+extern void _sparse_set_insert(size_t size, sparse_set_t *set, SP_INDEX_TYPE idx, void *elem, size_t init_size);
+extern void _sparse_set_delete(size_t size, sparse_set_t *set, SP_INDEX_TYPE idx, size_t init_size);
+extern void *_sparse_set_get(size_t size, sparse_set_t *set, SP_INDEX_TYPE idx);
+extern void _sparse_set_free(sparse_set_t *set);
+
+#if defined DA_ARR_CUSTOM_ALLOC
+#define da_sp_set(Type, allocator) (sparse_set_t *)_sparse_set_init(sizeof(Type), SP_DEFAULT_PAGE_SIZE, allocator)
+#else
+#define da_sp_set(Type) (sparse_set_t *)_sparse_set_init(sizeof(Type), SP_DEFAULT_PAGE_SIZE, null);
+#endif
+
+#define da_sp_set_insert(Type,set,idx,elem) _sparse_set_insert(sizeof(Type),set,idx,elem,SP_MIN_SIZE)
+#define da_sp_set_delete(Type,set,idx) _sparse_set_delete(sizeof(Type),set,idx,SP_MIN_SIZE)
+#define da_sp_set_get(Type,set,idx) (Type *)_sparse_set_get(sizeof(Type),set,idx)
+#define da_sp_set_free(set) _sparse_set_free(set)
+
+#ifdef SPARSESET_IMPLEMENTATION
+#include <stdlib.h>
+#include <stddef.h>
+#include <string.h>
+sparse_set_t *_sparse_set_empty(void * allocator) {
+    sparse_set_t *result = (sparse_set_t *)DA_REALLOC(allocator,NULL,sizeof(sparse_set_t));
+
+    memset(result, 0, sizeof(sparse_set_t));
+    return result;
+}
+
+sparse_set_t *_sparse_set_init(size_t size, size_t page_size, void * allocator) {
+    sparse_set_t *ptr = _sparse_set_empty(allocator);
+    ptr->page_size = page_size;
+    // dynarray_t *page_one_ptr = (dynarray_t *)_array_init(sizeof(INDEX_TYPE), page_size);
+    // ptr->sparse = da_arr(dynarray_t);
+    ptr->sparse = _array_init(sizeof(dynarray_t), SP_MIN_SIZE, allocator);
+    dynarray_t page_one;
+    page_one.cnt = 0;
+    page_one.capacity = page_size;
+    page_one.data = (char *)DA_REALLOC(allocator,NULL,sizeof(SP_INDEX_TYPE)*page_size);
+    da_arr_push(dynarray_t,ptr->sparse,&page_one);
+    // ptr->dense = dense_buffer;
+    ptr->dense = _array_init(size, SP_MIN_SIZE, allocator);
+    ptr->backwards = _array_init(sizeof(SP_INDEX_TYPE), SP_MIN_SIZE, allocator);
+    return ptr;
+}
+
+void _sparse_set_insert(size_t size, sparse_set_t *set, SP_INDEX_TYPE idx, void *elem, size_t init_size) {
+    SP_INDEX_TYPE target_page = idx / set->page_size;
+    SP_INDEX_TYPE local_idx = idx % set->page_size;
+    while (target_page >= (SP_INDEX_TYPE)set->sparse->cnt) {
+    //   dynarray_t *new_page_ptr = (dynarray_t *)_array_init(size, set->page_size);
+    //   dynarray_t new_page = *new_page_ptr;
+        dynarray_t new_page;
+        new_page.cnt = 0;
+        new_page.capacity = 0;
+        new_page.data = NULL;
+        da_arr_push(dynarray_t, set->sparse, &new_page);
+    //   printf("new page\n");
+    }
+    dynarray_t *page = da_arr_get(dynarray_t, set->sparse, target_page);
+    if (page->data == NULL) {
+        page->data = (char *)DA_REALLOC(DA_ALLOCATOR(set->sparse),NULL,sizeof(SP_INDEX_TYPE)*set->page_size);
+        page->capacity = set->page_size;
+        // memset(page->data, 0, sizeof(SP_INDEX_TYPE)*set->page_size);
+    }
+    if (local_idx >= (SP_INDEX_TYPE)page->cnt && page->cnt < set->page_size) {
+        SP_INDEX_TYPE tmp = (local_idx - (SP_INDEX_TYPE)page->cnt) + 1;
+        SP_INDEX_TYPE tombstone = 0;
+        while(tmp && page->cnt < page->capacity) {
+            da_arr_push(SP_INDEX_TYPE, page, &tombstone);
+            // page->cnt++;
+            tmp--;
+        }
+    }
+    SP_INDEX_TYPE sparse_idx = *arr_get(SP_INDEX_TYPE, page, local_idx);
+
+    if (sparse_idx != 0) {
+        _array_set(size, set->dense, sparse_idx, elem);
+        return;
+    }
+    _array_push(size, set->dense, elem, init_size, DA_ALLOCATOR(set->dense));
+    da_arr_push(SP_INDEX_TYPE, set->backwards, &idx);
+    SP_INDEX_TYPE dense_idx = (set->dense->cnt);
+    da_arr_set(SP_INDEX_TYPE, page, local_idx,&dense_idx);
+}
+
+void _sparse_set_delete(size_t size, sparse_set_t *set, SP_INDEX_TYPE idx, size_t init_size) {
+    SP_INDEX_TYPE target_page = idx / set->page_size;
+    SP_INDEX_TYPE local_idx = idx % set->page_size;
+    if (target_page >= set->sparse->cnt) {
+        return;
+    }
+    dynarray_t *page = da_arr_get(dynarray_t,set->sparse,target_page);
+    if (local_idx >= page->cnt) {
+        return;
+    }
+    SP_INDEX_TYPE dense_idx = *da_arr_get(SP_INDEX_TYPE, page, local_idx);
+    if (dense_idx == 0) {
+        return;
+    }
+    SP_INDEX_TYPE tmp = 0;
+    da_arr_set(SP_INDEX_TYPE, page, local_idx,&tmp);
+
+    SP_INDEX_TYPE back_idx = *da_arr_get(SP_INDEX_TYPE, set->backwards, set->backwards->cnt-1);
+    SP_INDEX_TYPE back_target_page = back_idx / set->page_size;
+    SP_INDEX_TYPE back_local_idx = back_idx % set->page_size;
+    dynarray_t *back_page = da_arr_get(dynarray_t, set->sparse, back_target_page);
+
+    da_arr_set(SP_INDEX_TYPE, back_page, back_local_idx, &dense_idx);
+    da_arr_set(SP_INDEX_TYPE, set->backwards, dense_idx-1, &back_idx);
+
+    da_arr_swap_remove(size, set->dense, dense_idx-1);
+    set->backwards->cnt--;    
+}
+
+void *_sparse_set_get(size_t size, sparse_set_t *set, SP_INDEX_TYPE idx) {
+    // void *ptr = NULL;
+    SP_INDEX_TYPE target_page = idx / set->page_size;
+    SP_INDEX_TYPE local_idx = idx % set->page_size;
+    if (target_page >= set->sparse->cnt) {
+        return NULL;
+    }
+    dynarray_t *page = da_arr_get(dynarray_t,set->sparse,target_page);
+    // if (local_idx >= page->cnt) {
+    //     return NULL;
+    // }
+    if (local_idx >= page->cnt) {
+        return NULL;
+    }
+    SP_INDEX_TYPE dense_idx = *da_arr_get(SP_INDEX_TYPE, page, local_idx);
+    if (dense_idx == 0) {
+        return NULL;
+    }
+    return _array_get(size, set->dense, dense_idx-1); 
+}
+void _sparse_set_free(sparse_set_t * set) {
+    for (size_t i = 0; i < da_arr_len(set->sparse); i++) {
+        DA_FREE(DA_ALLOCATOR(set->dense),da_arr_get(dynarray_t,set->sparse,i));
+    }
+    DA_FREE(DA_ALLOCATOR(set->dense),set->sparse);
+    da_arr_free(set->dense);
+    da_arr_free(set->backwards);
+}
 #endif
 // // // // // // // // // // // // // // // 
 // Unit tests
