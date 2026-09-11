@@ -718,7 +718,7 @@ extern void _sparse_set_free(sparse_set_t *set);
 #if defined DA_CUSTOM_ALLOC
 #define da_sp_set(Type, allocator) (sparse_set_t *)_sparse_set_init(sizeof(Type), SP_DEFAULT_PAGE_SIZE, allocator)
 #else
-#define da_sp_set(Type) (sparse_set_t *)_sparse_set_init(sizeof(Type), SP_DEFAULT_PAGE_SIZE, NULL);
+#define da_sp_set(Type) (sparse_set_t *)_sparse_set_init(sizeof(Type), SP_DEFAULT_PAGE_SIZE, NULL)
 #endif
 
 #define da_sp_set_insert(Type,set,idx,elem) _sparse_set_insert(sizeof(Type),set,idx,elem,SP_MIN_SIZE)
